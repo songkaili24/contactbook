@@ -17,6 +17,7 @@ class Contact:
     phone: str
     email: str
     address: Optional[str] = None
+    favorite: bool = False
 
 
 def validate_phone(phone: str) -> str:
@@ -57,7 +58,11 @@ def save_contacts(contacts: list[Contact]) -> None:
 
 
 def add_contact(
-    name: str, phone: str, email: str, address: Optional[str] = None
+    name: str,
+    phone: str,
+    email: str,
+    address: Optional[str] = None,
+    favorite: bool = False,
 ) -> Contact:
     """Validate and append a contact to contacts.json.
 
@@ -71,7 +76,59 @@ def add_contact(
     if any(c.name.lower() == name.lower() for c in contacts):
         raise ValueError(f"Contact {name!r} already exists")
 
-    contact = Contact(name=name, phone=phone, email=email, address=address)
+    contact = Contact(
+        name=name, phone=phone, email=email, address=address, favorite=favorite
+    )
     contacts.append(contact)
     save_contacts(contacts)
     return contact
+
+
+def edit_contact(
+    current: str,
+    *,
+    name: Optional[str] = None,
+    phone: Optional[str] = None,
+    email: Optional[str] = None,
+    address: Optional[str] = None,
+    favorite: Optional[bool] = None,
+) -> Contact:
+    """Update fields of the contact named `current` and persist the change.
+
+    Only fields whose value is not None are changed. Phone and email are
+    revalidated; renaming is rejected if it would collide with another
+    contact (case-insensitively).
+    """
+    contacts = load_contacts()
+    match = next((c for c in contacts if c.name.lower() == current.lower()), None)
+    if match is None:
+        raise ValueError(f"No contact named {current!r}")
+
+    changes = {
+        key: value
+        for key, value in {
+            "name": name,
+            "phone": phone,
+            "email": email,
+            "address": address,
+            "favorite": favorite,
+        }.items()
+        if value is not None
+    }
+    if not changes:
+        raise ValueError("No fields to update")
+
+    if "phone" in changes:
+        changes["phone"] = validate_phone(changes["phone"])
+    if "email" in changes:
+        changes["email"] = validate_email(changes["email"])
+    if "name" in changes and any(
+        c is not match and c.name.lower() == changes["name"].lower()
+        for c in contacts
+    ):
+        raise ValueError(f"Contact {changes['name']!r} already exists")
+
+    for field, value in changes.items():
+        setattr(match, field, value)
+    save_contacts(contacts)
+    return match
